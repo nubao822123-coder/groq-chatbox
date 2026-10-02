@@ -4,7 +4,12 @@ import os
 from colorama import init, Fore, Style
 from pathlib import Path
 from dotenv import load_dotenv
+import sys
+from rich.console import Console
+from rich.markdown import Markdown
 
+
+console = Console()
 init(autoreset=True)
 load_dotenv()
 
@@ -61,7 +66,7 @@ def adicionar_mensagem(papel, texto):
     
 def carregar_arquivo(nome):
     try:
-        with open(f"{NOME_PASTA}/conversa_{arquivo_atual}.json", "r", encoding="utf-8") as arquivo:
+        with open(f"{NOME_PASTA}/conversa_{nome}.json", "r", encoding="utf-8") as arquivo:
             his = json.load(arquivo)
             print(f"Chat Carregado: {nome}")
             
@@ -79,7 +84,11 @@ def printar_historico(payload):
         if label == "user":
             print(Fore.RED + f"Usuario : {msg['content']}")
         else:
-            print(Fore.MAGENTA + f"Modelo : {msg['content']}")
+            conteudo = msg['content']
+            md = Markdown(conteudo)
+            console.print("\n[magenta]Modelo:[/magenta]")
+            console.print(md, style="magenta")
+            print()
 
 if __name__ == "__main__":
     # Carrega o histórico existente, se houver
@@ -153,9 +162,11 @@ if __name__ == "__main__":
                 if r.status_code == 200:
                     resposta = r.json()
                     conteudo = resposta["choices"][0]["message"]["content"]
+                    markdown = Markdown(conteudo)
                     adicionar_mensagem("assistant", f"{conteudo} \n")
-                    print(Fore.MAGENTA + f"\nModelo: {conteudo} \n")
-                    salvar_mensagem()
+                    console.print("\n[magenta]Modelo:[/magenta]")
+                    console.print(markdown, style="magenta")
+                    print()
                 elif r.status_code == 404: 
                     print(Fore.GREEN + "Chat invalido ou modelo invalido: 404")
                 else:

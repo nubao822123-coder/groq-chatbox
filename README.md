@@ -1,6 +1,6 @@
 # 🚀 Chatbox sem Limites
 
-<img src="groq.png" width="300">
+<img src="groq.png" width="800">
 
 Um chatbox de ia com o groq q fiz rapido e pratico
 

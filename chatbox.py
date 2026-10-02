@@ -167,6 +167,7 @@ if __name__ == "__main__":
                     console.print("\n[magenta]Modelo:[/magenta]")
                     console.print(markdown, style="magenta")
                     print()
+                    salvar_mensagem()
                 elif r.status_code == 404: 
                     print(Fore.GREEN + "Chat invalido ou modelo invalido: 404")
                 else:

@@ -1,0 +1,5 @@
+.env
+conversas/
+__pycache__/
+.venv/
+*.pyc

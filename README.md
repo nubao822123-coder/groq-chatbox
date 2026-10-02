@@ -1,6 +1,6 @@
 # 🚀 Chatbox sem Limites
 
-https://files.catbox.moe/6myzkr.png
+<img src="https://files.catbox.moe/6myzkr.png" width="300">
 
 Um chatbox de ia com o groq q fiz rapido e pratico
 

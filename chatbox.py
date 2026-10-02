@@ -1,6 +1,7 @@
 import json
 import requests
 import os
+import subprocess
 from colorama import init, Fore, Style
 from pathlib import Path
 from dotenv import load_dotenv
@@ -8,10 +9,93 @@ import sys
 from rich.console import Console
 from rich.markdown import Markdown
 
-
 console = Console()
 init(autoreset=True)
 load_dotenv()
+
+# --- Ferramentas do Agente ---
+def list_dir(path="."):
+    try:
+        files = os.listdir(path)
+        return "\n".join(files) if files else "Diretório vazio."
+    except Exception as e:
+        return f"Erro ao listar diretório: {e}"
+
+def read_file(path):
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            return f.read()
+    except Exception as e:
+        return f"Erro ao ler arquivo: {e}"
+
+def write_file(path, content):
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return f"Arquivo {path} criado/escrito com sucesso."
+    except Exception as e:
+        return f"Erro ao escrever arquivo: {e}"
+
+def run_command(command):
+    try:
+        result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=30)
+        return f"STDOUT: {result.stdout}\nSTDERR: {result.stderr}"
+    except Exception as e:
+        return f"Erro ao executar comando: {e}"
+
+TOOLS = [
+    {
+        "type": "function",
+        "function": {
+            "name": "list_dir",
+            "description": "Útil para explorar o sistema de arquivos, ver quais arquivos existem em uma pasta e entender a estrutura do projeto.",
+            "parameters": {
+                "type": "object",
+                "properties": {"path": {"type": "string", "description": "Caminho do diretório (use '.' para atual)"}},
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "read_file",
+            "description": "Lê o conteúdo completo de um arquivo. Use isso para analisar códigos, ler READMEs ou logs.",
+            "parameters": {
+                "type": "object",
+                "properties": {"path": {"type": "string", "description": "Caminho completo do arquivo"}},
+                "required": ["path"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "write_file",
+            "description": "Cria ou sobrescreve um arquivo com o conteúdo especificado. Útil para salvar scripts, notas ou configurações.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path": {"type": "string", "description": "Caminho do arquivo a ser criado"},
+                    "content": {"type": "string", "description": "Conteúdo do arquivo"}
+                },
+                "required": ["path", "content"]
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "run_command",
+            "description": "Sempre que precisar criar um arquivo, instalar um pacote ou executar um script python, use este comando. Você pode usar comandos como 'echo texto > arquivo.py' para criar arquivos ou 'python arquivo.py' para rodá-los.",
+            "parameters": {
+                "type": "object",
+                "properties": {"command": {"type": "string", "description": "Comando completo do terminal (bash/powershell)"}},
+                "required": ["command"]
+            }
+        }
+    }
+]
 
 historico = []
 contador = 1
@@ -34,9 +118,12 @@ def carregar_api():
     except Exception as e:
         print(Fore.RED + f"Erro ao carregar API: {e}")
         quit()
-    except Exception as e:
-        print(Fore.RED + f"Erro ao carregar API: {e}")
-        quit()
+
+# Mensagem de sistema para forçar a IA a usar ferramentas
+SYSTEM_PROMPT = {
+    "role": "system", 
+    "content": "Você é um assistente programador proativo. Quando o usuário pedir um script ou código, NÃO apenas mostre o código. Use a ferramenta 'run_command' para criar o arquivo no disco e depois execute-o para mostrar o resultado ao usuário. Seja autônomo."
+}
 
 while os.path.exists(os.path.join(NOME_PASTA, f"conversa_{contador}.json")):
     contador += 1
@@ -60,9 +147,14 @@ def limpar_tela():
     print(Fore.CYAN + "Se quizer ajuda fale /ajuda para mostra a lista de comandos\n")
     print(Fore.CYAN + f"Modelo atual: {MODELO}\n")
 
-def adicionar_mensagem(papel, texto):
+def adicionar_mensagem(papel, texto, tool_calls=None, tool_call_id=None):
     """Adiciona uma nova mensagem ao histórico."""
-    historico.append({"role": papel, "content": texto})
+    msg = {"role": papel, "content": texto}
+    if tool_calls:
+        msg["tool_calls"] = tool_calls
+    if tool_call_id:
+        msg["tool_call_id"] = tool_call_id
+    historico.append(msg)
     
 def carregar_arquivo(nome):
     try:
@@ -96,6 +188,10 @@ if __name__ == "__main__":
         limpar_tela()
         carregar_api()
         criar_pasta()
+        
+        # Inicializa o histórico com a mensagem de sistema
+        historico = [SYSTEM_PROMPT]
+        
         while True:
             msg = input(Fore.RED + "Usuario: ")
             txt = msg.split()
@@ -148,37 +244,72 @@ if __name__ == "__main__":
                     continue
                 
             else:
-                adicionar_mensagem("user", f"{msg} \n")
+                adicionar_mensagem("user", msg)
                 headers = {
                     "Authorization": "Bearer " + API,
                     "Content-Type": "application/json"
                 }
-                payload = {
-                    "model": MODELO,
-                    "messages": historico
-                }
                 
-                r = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
-                if r.status_code == 200:
+                # Loop de execução de ferramentas
+                while True:
+                    payload = {
+                        "model": MODELO,
+                        "messages": historico,
+                        "tools": TOOLS,
+                        "tool_choice": "auto"
+                    }
+                    
+                    r = requests.post("https://api.groq.com/openai/v1/chat/completions", json=payload, headers=headers)
+                    
+                    if r.status_code != 200:
+                        print(Fore.RED + f"Erro na API: {r.status_code}")
+                        break
+                    
                     resposta = r.json()
-                    conteudo = resposta["choices"][0]["message"]["content"]
+                    message = resposta["choices"][0]["message"]
+                    
+                    # Se a IA quiser usar uma ferramenta
+                    if "tool_calls" in message:
+                        for tool_call in message["tool_calls"]:
+                            function_name = tool_call["function"]["name"]
+                            args = json.loads(tool_call["function"]["arguments"])
+                            
+                            console.print(f"\n[yellow]🛠️ Executando {function_name}({args})...[/yellow]")
+                            
+                            if function_name == "list_dir":
+                                result = list_dir(args.get("path", "."))
+                            elif function_name == "read_file":
+                                result = read_file(args.get("path", ""))
+                            elif function_name == "write_file":
+                                result = write_file(args.get("path", ""), args.get("content", ""))
+                            elif function_name == "run_command":
+                                result = run_command(args.get("command", ""))
+                            else:
+                                result = "Ferramenta desconhecida."
+                            
+                            # IMPORTANTE: Adiciona a chamada REAL da IA e depois o resultado
+                            adicionar_mensagem("assistant", None, tool_calls=message["tool_calls"])
+                            adicionar_mensagem("tool", result, tool_call_id=tool_call["id"])
+                        
+                        continue 
+                    
+                    conteudo = message.get("content", "")
                     markdown = Markdown(conteudo)
-                    adicionar_mensagem("assistant", f"{conteudo} \n")
-                    console.print("\n[magenta]Modelo:[/magenta]")
+                    adicionar_mensagem("assistant", conteudo)
+                    console.print("\n[bold magenta]Modelo:[/bold magenta]")
                     console.print(markdown, style="magenta")
                     print()
                     salvar_mensagem()
-                elif r.status_code == 404: 
-                    print(Fore.GREEN + "Chat invalido ou modelo invalido: 404")
-                else:
-                    print(Fore.GREEN + f"Falha na api: {r.status_code}")
+                    break
+                
+                # Nota: Os elifs de r.status_code foram movidos para dentro do loop ou removidos
+                # pois o check 'if r.status_code != 200' já trata a maioria dos erros.
                     
     except KeyboardInterrupt:
         print("\nKeyboard interrupt")
         print(Style.RESET_ALL)
     except Exception as e:
         print(Fore.RED + f"\nOcorreu um erro inesperado: {e}")
+        print(Fore.RED + f"{r.json()}")
         print(Style.RESET_ALL)
-        
-        
-        
+

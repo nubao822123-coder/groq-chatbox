@@ -1,5 +1,7 @@
 # 🚀 Chatbox sem Limites
 
+https://files.catbox.moe/6myzkr.png
+
 Um chatbox de ia com o groq q fiz rapido e pratico
 
 ## 🚀 Como Instalar e Rodar

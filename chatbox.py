@@ -274,7 +274,7 @@ if __name__ == "__main__":
                             function_name = tool_call["function"]["name"]
                             args = json.loads(tool_call["function"]["arguments"])
                             
-                            console.print(f"\n[yellow]🛠️ Executando {function_name}({args})...[/yellow]")
+                            console.print(f"\n[yellow]🛠️ Executando {function_name}...[/yellow]")
                             
                             if function_name == "list_dir":
                                 result = list_dir(args.get("path", "."))

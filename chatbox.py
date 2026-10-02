@@ -274,18 +274,25 @@ if __name__ == "__main__":
                             function_name = tool_call["function"]["name"]
                             args = json.loads(tool_call["function"]["arguments"])
                             
-                            console.print(f"\n[yellow]🛠️ Executando {function_name}...[/yellow]")
-                            
+                            # Customização da mensagem de execução baseada na ferramenta e argumentos
+                            msg_exec = f"🛠️ Executando {function_name}"
                             if function_name == "list_dir":
+                                msg_exec += f" no diretório {args.get('path', '.')}"
                                 result = list_dir(args.get("path", "."))
                             elif function_name == "read_file":
+                                msg_exec += f" no arquivo {args.get('path', 'desconhecido')}"
                                 result = read_file(args.get("path", ""))
                             elif function_name == "write_file":
+                                msg_exec += f" criando o arquivo {args.get('path', 'desconhecido')}"
                                 result = write_file(args.get("path", ""), args.get("content", ""))
                             elif function_name == "run_command":
+                                msg_exec += f" o comando: {args.get('command', 'desconhecido')}"
                                 result = run_command(args.get("command", ""))
                             else:
+                                msg_exec += "..."
                                 result = "Ferramenta desconhecida."
+                            
+                            console.print(f"\n[yellow]{msg_exec}...[/yellow]")
                             
                             # IMPORTANTE: Adiciona a chamada REAL da IA e depois o resultado
                             adicionar_mensagem("assistant", None, tool_calls=message["tool_calls"])
